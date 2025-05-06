@@ -12,17 +12,17 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^8.2.0",
-    "express": "^4.17.1",
+    "dotenv": "^8.6.0",
+    "express": "^4.21.2",
     "express-async-handler": "^1.1.4",
     "faker": "^4.1.0",
     "jsonwebtoken": "^8.5.1",
     "lodash": "^4.17.15",
     "module-alias": "^2.2.2",
-    "pg": "^7.14.0",
+    "pg": "^8.5.1",
     "reflect-metadata": "^0.1.13",
     "striptags": "^3.1.1",
-    "typeorm": "^0.2.20"
+    "typeorm": "^0.2.45"
   },
   "devDependencies": {
     "@types/cors": "^2.8.6",
@@ -41,9 +41,9 @@
     "eslint-plugin-import": "^2.18.2",
     "eslint-plugin-prettier": "^3.1.1",
     "lint-staged": "^9.4.3",
-    "nodemon": "^2.0.0",
+    "nodemon": "^2.0.22",
     "prettier": "^1.19.1",
-    "ts-node": "^8.5.2",
+    "ts-node": "^8.10.2",
     "tsconfig-paths": "^3.9.0",
     "typescript": "^3.7.2"
   },
