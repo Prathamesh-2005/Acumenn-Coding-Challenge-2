@@ -1,4 +1,4 @@
-# Acumenn-Coding-Challenge-2
+![image](https://github.com/user-attachments/assets/3ac18658-2226-4ae1-ba0d-698b7d2dc29e)# Acumenn-Coding-Challenge-2
 
 # 🛠️ Jira Clone – Serverless Architecture (Phase 2)
 
@@ -140,7 +140,11 @@ CREATE POLICY "read_all_issue_users" ON "issue_users_user"
 
 ---
 ## DATABASE SCHEMA 
-![Uploading image.png…]()
+
+![Uploading supabase-schema-qublxlqfwshijqyoypvj (1).png…]()
+
+
+
 
 
 ## 🚀 Deployment Instructions
