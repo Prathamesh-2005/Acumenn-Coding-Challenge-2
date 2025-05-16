@@ -1,4 +1,4 @@
-![image](https://github.com/user-attachments/assets/3ac18658-2226-4ae1-ba0d-698b7d2dc29e)# Acumenn-Coding-Challenge-2
+# Acumenn-Coding-Challenge-2
 
 # 🛠️ Jira Clone – Serverless Architecture (Phase 2)
 
