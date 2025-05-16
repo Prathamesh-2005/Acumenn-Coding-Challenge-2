@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 
 import { ProjectCategory, ProjectCategoryCopy } from 'shared/constants/projects';
 import toast from 'shared/utils/toast';
-import useApi from 'shared/hooks/api';
+import supabase  from 'config/supaBaseConfig'; // Ensure this is configured
 import { Form, Breadcrumbs } from 'shared/components';
 
 import { FormCont, FormHeading, FormElement, ActionButton } from './Styles';
@@ -14,7 +14,31 @@ const propTypes = {
 };
 
 const ProjectSettings = ({ project, fetchProject }) => {
-  const [{ isUpdating }, updateProject] = useApi.put('/project');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleSubmit = async (values, form) => {
+    setIsUpdating(true);
+
+    const { error } = await supabase
+      .from('project')
+      .update({
+        name: values.name,
+        url: values.url,
+        description: values.description,
+        category: values.category,
+        updatedAt: new Date().toISOString(),
+      })
+      .eq('id', project.id);
+
+    setIsUpdating(false);
+
+    if (error) {
+      Form.handleAPIError(error, form);
+    } else {
+      toast.success('Changes have been saved successfully.');
+      await fetchProject(); // Refresh project info
+    }
+  };
 
   return (
     <Form
@@ -29,15 +53,7 @@ const ProjectSettings = ({ project, fetchProject }) => {
         url: Form.is.url(),
         category: Form.is.required(),
       }}
-      onSubmit={async (values, form) => {
-        try {
-          await updateProject(values);
-          await fetchProject();
-          toast.success('Changes have been saved successfully.');
-        } catch (error) {
-          Form.handleAPIError(error, form);
-        }
-      }}
+      onSubmit={handleSubmit}
     >
       <FormCont>
         <FormElement>

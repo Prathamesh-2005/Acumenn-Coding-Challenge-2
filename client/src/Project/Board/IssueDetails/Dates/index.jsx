@@ -6,15 +6,32 @@ import { formatDateTimeConversational } from 'shared/utils/dateTime';
 import { Dates } from './Styles';
 
 const propTypes = {
-  issue: PropTypes.object.isRequired,
+  issue: PropTypes.shape({
+    createdAt: PropTypes.oneOfType([
+      PropTypes.string,
+      PropTypes.instanceOf(Date),
+    ]).isRequired,
+    updatedAt: PropTypes.oneOfType([
+      PropTypes.string,
+      PropTypes.instanceOf(Date),
+    ]).isRequired,
+  }).isRequired,
 };
 
-const ProjectBoardIssueDetailsDates = ({ issue }) => (
-  <Dates>
-    <div>Created at {formatDateTimeConversational(issue.createdAt)}</div>
-    <div>Updated at {formatDateTimeConversational(issue.updatedAt)}</div>
-  </Dates>
-);
+const ProjectBoardIssueDetailsDates = ({ issue }) => {
+  // Convert to Date objects if they are strings
+  const createdAtDate =
+    typeof issue.createdAt === 'string' ? new Date(issue.createdAt) : issue.createdAt;
+  const updatedAtDate =
+    typeof issue.updatedAt === 'string' ? new Date(issue.updatedAt) : issue.updatedAt;
+
+  return (
+    <Dates>
+      <div>Created at {formatDateTimeConversational(createdAtDate)}</div>
+      <div>Updated at {formatDateTimeConversational(updatedAtDate)}</div>
+    </Dates>
+  );
+};
 
 ProjectBoardIssueDetailsDates.propTypes = propTypes;
 

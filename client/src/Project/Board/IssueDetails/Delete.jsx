@@ -1,24 +1,31 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-import api from 'shared/utils/api';
+import supabase from 'config/supaBaseConfig';
 import toast from 'shared/utils/toast';
 import { Button, ConfirmModal } from 'shared/components';
 
-const propTypes = {
-  issue: PropTypes.object.isRequired,
-  fetchProject: PropTypes.func.isRequired,
-  modalClose: PropTypes.func.isRequired,
-};
-
-const ProjectBoardIssueDetailsDelete = ({ issue, fetchProject, modalClose }) => {
+const ProjectBoardIssueDetailsDelete = ({ issueId, fetchProject, modalClose }) => {
   const handleIssueDelete = async () => {
     try {
-      await api.delete(`/issues/${issue.id}`);
+      // Check if supabase is properly initialized
+      if (!supabase || typeof supabase.from !== 'function') {
+        throw new Error('Supabase client is not properly initialized');
+      }
+      
+      const { error } = await supabase
+        .from('issue')
+        .delete()
+        .eq('id', issueId);
+
+      if (error) throw error;
+
       await fetchProject();
       modalClose();
-    } catch (error) {
-      toast.error(error);
+      toast.success('Issue successfully deleted');
+    } catch (err) {
+      console.error('Delete issue error:', err);
+      toast.error(`Failed to delete issue: ${err.message}`);
     }
   };
 
@@ -35,6 +42,14 @@ const ProjectBoardIssueDetailsDelete = ({ issue, fetchProject, modalClose }) => 
   );
 };
 
-ProjectBoardIssueDetailsDelete.propTypes = propTypes;
+ProjectBoardIssueDetailsDelete.propTypes = {
+  // Accept both string and number types for issueId
+  issueId: PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.number
+  ]).isRequired,
+  fetchProject: PropTypes.func.isRequired,
+  modalClose: PropTypes.func.isRequired,
+};
 
 export default ProjectBoardIssueDetailsDelete;

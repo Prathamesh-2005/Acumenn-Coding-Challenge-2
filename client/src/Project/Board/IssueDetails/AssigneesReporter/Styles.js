@@ -24,3 +24,11 @@ export const Username = styled.div`
   padding: 0 3px 0 8px;
   ${font.size(14.5)}
 `;
+
+export const AssigneesWrapper = styled.div`
+  margin-bottom: 20px;
+  
+  & > div {
+    margin-bottom: 15px;
+  }
+`;

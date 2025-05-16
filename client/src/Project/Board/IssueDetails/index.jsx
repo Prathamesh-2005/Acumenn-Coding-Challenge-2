@@ -1,8 +1,7 @@
-import React, { Fragment } from 'react';
+import React, { Fragment, useEffect, useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
-
-import api from 'shared/utils/api';
-import useApi from 'shared/hooks/api';
+import supabase from 'config/supaBaseConfig';
+import toast from 'shared/utils/toast';
 import { PageError, CopyLinkButton, Button, AboutTooltip } from 'shared/components';
 
 import Loader from './Loader';
@@ -19,7 +18,10 @@ import Dates from './Dates';
 import { TopActions, TopActionsRight, Content, Left, Right } from './Styles';
 
 const propTypes = {
-  issueId: PropTypes.string.isRequired,
+  issueId: PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.number
+  ]).isRequired,
   projectUsers: PropTypes.array.isRequired,
   fetchProject: PropTypes.func.isRequired,
   updateLocalProjectIssues: PropTypes.func.isRequired,
@@ -33,26 +35,180 @@ const ProjectBoardIssueDetails = ({
   updateLocalProjectIssues,
   modalClose,
 }) => {
-  const [{ data, error, setLocalData }, fetchIssue] = useApi.get(`/issues/${issueId}`);
+  const [issue, setIssue] = useState(null);
+  const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  if (!data) return <Loader />;
-  if (error) return <PageError />;
+  const fetchIssue = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Fetch the issue with its related data
+      const { data, error: issueError } = await supabase
+        .from('issue')
+        .select(`
+          *,
+          reporter:reporterId(*),
+          assignee:assigneeId(*)
+        `)
+        .eq('id', issueId)
+        .single();
 
-  const { issue } = data;
+      if (issueError) throw issueError;
+      
+      if (!data) {
+        throw new Error('Issue not found');
+      }
 
-  const updateLocalIssueDetails = fields =>
-    setLocalData(currentData => ({ issue: { ...currentData.issue, ...fields } }));
+      // Fetch user associations
+      const { data: userAssociations, error: userAssociationsError } = await supabase
+        .from('issue_users_user')
+        .select('user_id')
+        .eq('issueId', issueId);
 
-  const updateIssue = updatedFields => {
-    api.optimisticUpdate(`/issues/${issueId}`, {
-      updatedFields,
-      currentFields: issue,
-      setLocalData: fields => {
-        updateLocalIssueDetails(fields);
-        updateLocalProjectIssues(issue.id, fields);
-      },
-    });
-  };
+      if (userAssociationsError) throw userAssociationsError;
+      
+      // Extract user IDs and find matching users from projectUsers
+      const userIds = userAssociations?.map(item => item.user_id) || [];
+      const users = userIds.map(userId => 
+        projectUsers.find(user => user.id === userId)
+      ).filter(Boolean);
+      
+      // Fetch comments for this issue
+      const { data: comments, error: commentsError } = await supabase
+        .from('comment')
+        .select('*, user:userId(*)')
+        .eq('issueId', issueId)
+        .order('createdAt', { ascending: false });
+
+      if (commentsError) throw commentsError;
+      
+      // Construct the formatted issue with users and comments
+      const formattedIssue = {
+        ...data,
+        userIds, // Store the raw userIds array
+        users,   // Store the full user objects
+        comments: comments || []
+      };
+      
+      setIssue(formattedIssue);
+      updateLocalProjectIssues(formattedIssue.id, formattedIssue);
+    } catch (err) {
+      console.error('Error fetching issue details:', err);
+      setError(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [issueId, projectUsers, updateLocalProjectIssues]);
+
+  useEffect(() => {
+    if (issueId) {
+      fetchIssue();
+    }
+  }, [issueId, fetchIssue]);
+
+  // Set up realtime subscription for the issue and issue_users_user tables
+  useEffect(() => {
+    if (!issueId) return;
+    
+    // Issue table subscription
+    const issueSubscription = supabase
+      .channel('issue-changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'issue',
+        filter: `id=eq.${issueId}`
+      }, () => {
+        console.log('Issue change detected, refreshing...');
+        fetchIssue();
+      })
+      .subscribe();
+      
+    // Issue users subscription
+    const usersSubscription = supabase
+      .channel('issue-users-changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'issue_users_user',
+        filter: `issueId=eq.${issueId}`
+      }, () => {
+        console.log('Issue users change detected, refreshing...');
+        fetchIssue();
+      })
+      .subscribe();
+      
+    // Comments subscription
+    const commentsSubscription = supabase
+      .channel('issue-comments-changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'comment',
+        filter: `issueId=eq.${issueId}`
+      }, () => {
+        console.log('Comment change detected, refreshing...');
+        fetchIssue();
+      })
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(issueSubscription);
+      supabase.removeChannel(usersSubscription);
+      supabase.removeChannel(commentsSubscription);
+    };
+  }, [issueId, fetchIssue]);
+
+  const updateIssue = useCallback(async (updatedFields) => {
+    try {
+      if (!issue) {
+        console.error('Cannot update issue: issue is null');
+        return;
+      }
+      
+      // Create a new issue object by merging the current issue with updated fields
+      const updatedIssue = { ...issue, ...updatedFields };
+      
+      // Update local state immediately for optimistic UI update
+      setIssue(updatedIssue);
+      
+      // Extract only database-relevant fields (exclude UI-specific fields)
+      const dbFields = { ...updatedFields };
+      // Remove fields that shouldn't be sent directly to the issue table
+      delete dbFields.users;
+      delete dbFields.userIds;
+      delete dbFields.comments;
+      
+      // Only update the database if there are actual database fields to update
+      // and if they're not being handled by child components directly
+      if (Object.keys(dbFields).length > 0 && 
+          !updatedFields.hasOwnProperty('_updatedInChild')) {
+        // Send the update to Supabase
+        const { error: updateError } = await supabase
+          .from('issue')
+          .update(dbFields)
+          .eq('id', issue.id);
+        
+        if (updateError) throw updateError;
+      }
+      
+      // Update parent component state
+      updateLocalProjectIssues(updatedIssue.id, updatedFields);
+      
+    } catch (err) {
+      console.error('Error handling issue update:', err);
+      toast.error(err.message || 'Failed to update issue');
+      
+      // Revert to previous state if error occurs
+      fetchIssue();
+    }
+  }, [issue, updateLocalProjectIssues, fetchIssue]);
+
+  if (isLoading) return <Loader />;
+  if (error) return <PageError message={error.message || 'Error loading issue'} />;
+  if (!issue) return <PageError message="Issue not found" />;
 
   return (
     <Fragment>
@@ -67,19 +223,30 @@ const ProjectBoardIssueDetails = ({
             )}
           />
           <CopyLinkButton variant="empty" />
-          <Delete issue={issue} fetchProject={fetchProject} modalClose={modalClose} />
+          <Delete 
+            issue={issue} 
+            issueId={issue.id} 
+            fetchProject={fetchProject} 
+            modalClose={modalClose} 
+          />
           <Button icon="close" iconSize={24} variant="empty" onClick={modalClose} />
         </TopActionsRight>
       </TopActions>
+
       <Content>
         <Left>
           <Title issue={issue} updateIssue={updateIssue} />
           <Description issue={issue} updateIssue={updateIssue} />
           <Comments issue={issue} fetchIssue={fetchIssue} />
         </Left>
+
         <Right>
           <Status issue={issue} updateIssue={updateIssue} />
-          <AssigneesReporter issue={issue} updateIssue={updateIssue} projectUsers={projectUsers} />
+          <AssigneesReporter 
+            issue={issue} 
+            updateIssue={updateIssue} 
+            projectUsers={projectUsers} 
+          />
           <Priority issue={issue} updateIssue={updateIssue} />
           <EstimateTracking issue={issue} updateIssue={updateIssue} />
           <Dates issue={issue} />
@@ -90,5 +257,4 @@ const ProjectBoardIssueDetails = ({
 };
 
 ProjectBoardIssueDetails.propTypes = propTypes;
-
 export default ProjectBoardIssueDetails;

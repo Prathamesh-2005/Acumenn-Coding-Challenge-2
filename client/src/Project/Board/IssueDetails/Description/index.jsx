@@ -5,22 +5,42 @@ import { getTextContentsFromHtmlString } from 'shared/utils/browser';
 import { TextEditor, TextEditedContent, Button } from 'shared/components';
 
 import { Title, EmptyLabel, Actions } from './Styles';
+import supabase from 'config/supaBaseConfig';
 
 const propTypes = {
-  issue: PropTypes.object.isRequired,
-  updateIssue: PropTypes.func.isRequired,
+  issue: PropTypes.object.isRequired, // { id, description, ... }
 };
 
-const ProjectBoardIssueDetailsDescription = ({ issue, updateIssue }) => {
+const Description = ({ issue }) => {
   const [description, setDescription] = useState(issue.description);
   const [isEditing, setEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
+    setLoading(true);
     setEditing(false);
-    updateIssue({ description });
+
+    const plainText = getTextContentsFromHtmlString(description).trim();
+
+    const { error } = await supabase
+      .from('issue')
+      .update({
+        description: description,
+        descriptionText: plainText,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', issue.id);
+
+    if (error) {
+      console.error('Error updating description:', error.message);
+      // You may show a toast/snackbar here for UX
+    }
+
+    setLoading(false);
   };
 
-  const isDescriptionEmpty = getTextContentsFromHtmlString(description).trim().length === 0;
+  const isDescriptionEmpty =
+    getTextContentsFromHtmlString(description).trim().length === 0;
 
   return (
     <Fragment>
@@ -33,10 +53,10 @@ const ProjectBoardIssueDetailsDescription = ({ issue, updateIssue }) => {
             onChange={setDescription}
           />
           <Actions>
-            <Button variant="primary" onClick={handleUpdate}>
-              Save
+            <Button variant="primary" onClick={handleUpdate} disabled={loading}>
+              {loading ? 'Saving...' : 'Save'}
             </Button>
-            <Button variant="empty" onClick={() => setEditing(false)}>
+            <Button variant="empty" onClick={() => setEditing(false)} disabled={loading}>
               Cancel
             </Button>
           </Actions>
@@ -54,6 +74,6 @@ const ProjectBoardIssueDetailsDescription = ({ issue, updateIssue }) => {
   );
 };
 
-ProjectBoardIssueDetailsDescription.propTypes = propTypes;
+Description.propTypes = propTypes;
 
-export default ProjectBoardIssueDetailsDescription;
+export default Description;
