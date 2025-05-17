@@ -1,5 +1,3 @@
-// Fixed Project.jsx - Optimized for Supabase with proper fetch patterns
-
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Route, Redirect, useRouteMatch, useHistory } from 'react-router-dom';
 import { updateArrayItemById } from 'shared/utils/javascript';
@@ -251,10 +249,18 @@ const Project = () => {
   }, [fetchProject, fetchIssues, currentUserId, project, issues.length]);
 
   // Method to update issues locally (for optimistic updates)
-  const updateLocalProjectIssues = useCallback((issueId, updatedFields) => {
-    setIssues(currentIssues => {
-      return updateArrayItemById(currentIssues, issueId, updatedFields);
-    });
+  const updateLocalProjectIssues = useCallback((updaterFn) => {
+    // If updaterFn is a function, use it to update state
+    if (typeof updaterFn === 'function') {
+      setIssues(updaterFn);
+    } 
+    // Otherwise treat it as the traditional issueId + updatedFields pattern
+    else {
+      const [issueId, updatedFields] = updaterFn;
+      setIssues(currentIssues => {
+        return updateArrayItemById(currentIssues, issueId, updatedFields);
+      });
+    }
   }, []);
 
   // Display loading state
@@ -302,8 +308,9 @@ const Project = () => {
             <IssueCreate
               project={project}
               fetchProject={fetchProject}
+              fetchIssues={fetchIssues}
+              updateLocalProjectIssues={updateLocalProjectIssues}
               onCreate={() => {
-                fetchIssues(true);
                 history.push(`${match.url}/board`);
               }}
               modalClose={modal.close}
