@@ -11,7 +11,7 @@ import {
 import toast from 'shared/utils/toast';
 import useCurrentUser from 'shared/hooks/currentUser';
 import { Form, IssueTypeIcon, Icon, Avatar, IssuePriorityIcon } from 'shared/components';
-import  supabase  from 'config/supaBaseConfig';
+import supabase from 'config/supaBaseConfig';
 
 import {
   FormHeading,
@@ -126,6 +126,8 @@ const IssueCreate = ({
           if (createdIssue) {
             const formattedIssue = {
               ...createdIssue,
+              id: String(createdIssue.id), // Ensure ID is a string for consistency
+              projectId: String(createdIssue.projectId), // Ensure projectId is a string
               userIds: values.userIds,
               users: values.userIds.map(userId => {
                 const user = project.users.find(u => u.id === userId);
@@ -135,28 +137,27 @@ const IssueCreate = ({
               assignee: assigneeId ? project.users.find(user => user.id === assigneeId) : null,
             };
             
-            // Update local project issues
+            // Update local project issues immediately for real-time feedback
             updateLocalProjectIssues(currentIssues => {
-              // Add the new issue at the beginning of the array for immediate visibility
               return [formattedIssue, ...currentIssues];
             });
+            
+            // Trigger the onCreate callback with the formatted issue for immediate use
+            if (onCreate) {
+              onCreate(formattedIssue);
+            }
+            
+            toast.success('Issue has been successfully created.');
+            
+            // Close the modal first for better UX
+            modalClose();
+            
+            // Then fetch updated project data in the background
+            fetchProject();
+            
+            // Also refresh issues in the background to sync any backend changes
+            fetchIssues(true);
           }
-          
-          // Fetch updated project data
-          await fetchProject();
-          
-          // Refresh the issues list to get server-updated positions and any other backend changes
-          await fetchIssues(true);
-          
-          toast.success('Issue has been successfully created.');
-          
-          // Trigger the onCreate callback
-          if (onCreate) {
-            onCreate(createdIssue);
-          }
-          
-          // Close the modal
-          modalClose();
         } catch (error) {
           console.error('Failed to create issue:', error);
           Form.handleAPIError(error, form);
