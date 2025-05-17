@@ -1,4 +1,4 @@
-![supabase-schema-qublxlqfwshijqyoypvj (1)](https://github.com/user-attachments/assets/91963541-1b95-491f-8c28-6e99e5cc7c41)# Acumenn-Coding-Challenge-2
+# Acumenn-Coding-Challenge-2
 
 # 🛠️ Jira Clone – Serverless Architecture (Phase 2)
 
