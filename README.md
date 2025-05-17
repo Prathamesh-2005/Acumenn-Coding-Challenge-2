@@ -19,6 +19,8 @@ This project is a **Jira Clone** application re-architected into a **modern serv
   - Scalability, Security, Maintainability
 
 ---
+## Deployed LINK of project= 
+https://acumenn-coding-challenge-2-omih-yqzy83sx2.vercel.app/
 
 ## 🧱 Database Schema (PostgreSQL)
 
