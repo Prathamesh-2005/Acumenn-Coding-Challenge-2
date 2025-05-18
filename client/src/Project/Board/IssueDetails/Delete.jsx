@@ -1,10 +1,11 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+
 import supabase from 'config/supaBaseConfig';
 import toast from 'shared/utils/toast';
 import { Button, ConfirmModal } from 'shared/components';
 
-const ProjectBoardIssueDetailsDelete = ({ issueId, fetchProject, modalClose, updateLocalProjectIssues }) => {
+const ProjectBoardIssueDetailsDelete = ({ issue, issueId, fetchProject, modalClose, updateLocalProjectIssues }) => {
   const handleIssueDelete = async () => {
     try {
       // Check if supabase is properly initialized
@@ -12,33 +13,38 @@ const ProjectBoardIssueDetailsDelete = ({ issueId, fetchProject, modalClose, upd
         throw new Error('Supabase client is not properly initialized');
       }
       
-      // Delete the issue from the database
+      // Immediately update local state for optimistic UI update
+      // Using a special flag to mark the issue as being deleted
+      if (updateLocalProjectIssues) {
+        updateLocalProjectIssues(issueId, { isDeleted: true });
+      }
+      
+      // Perform the actual deletion
       const { error } = await supabase
         .from('issue')
         .delete()
         .eq('id', issueId);
-        
+
       if (error) throw error;
-      
-      // Update local state to remove the deleted issue
-      // Call updateLocalProjectIssues with a function that filters out the deleted issue
-      updateLocalProjectIssues(currentIssues => 
-        Array.isArray(currentIssues) 
-          ? currentIssues.filter(issue => issue.id !== issueId)
-          : []
-      );
-      
-      toast.success('Issue successfully deleted');
-      
-      // Close the modal after deletion
+
+      // Close the modal immediately for better UX
       modalClose();
       
-      // Fetch project to refresh data
-      await fetchProject();
+      // Show success message
+      toast.success('Issue successfully deleted');
+      
+      // Refresh project data in the background
+      // This ensures all components are synced with the latest data
+      fetchProject(true);
       
     } catch (err) {
       console.error('Delete issue error:', err);
       toast.error(`Failed to delete issue: ${err.message}`);
+      
+      // If there was an error, revert the optimistic update
+      if (updateLocalProjectIssues) {
+        updateLocalProjectIssues(issueId, { isDeleted: false });
+      }
     }
   };
 
@@ -56,14 +62,14 @@ const ProjectBoardIssueDetailsDelete = ({ issueId, fetchProject, modalClose, upd
 };
 
 ProjectBoardIssueDetailsDelete.propTypes = {
-  // Accept both string and number types for issueId
+  issue: PropTypes.object.isRequired,
   issueId: PropTypes.oneOfType([
     PropTypes.string,
     PropTypes.number
   ]).isRequired,
   fetchProject: PropTypes.func.isRequired,
   modalClose: PropTypes.func.isRequired,
-  updateLocalProjectIssues: PropTypes.func.isRequired,
+  updateLocalProjectIssues: PropTypes.func
 };
 
 export default ProjectBoardIssueDetailsDelete;
