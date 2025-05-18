@@ -58,6 +58,43 @@ const ProjectBoard = ({
   const componentMountedRef = useRef(true);
   const lastRefreshTimeRef = useRef(0);
   
+  // Enhanced update local issues function with multiple usage patterns
+  const enhancedUpdateLocalProjectIssues = useCallback((updatedIssuesOrId, fieldsOrNewIssueId = null) => {
+    // Handle different calling patterns:
+    // 1. enhancedUpdateLocalProjectIssues(updatedIssues) - replace all issues
+    // 2. enhancedUpdateLocalProjectIssues(updatedIssues, newIssueId) - replace and track new issue
+    // 3. enhancedUpdateLocalProjectIssues(issueId, fieldsToUpdate) - update specific issue
+
+    if (Array.isArray(updatedIssuesOrId)) {
+      // Case 1 & 2: Replacing all issues
+      updateLocalProjectIssues(updatedIssuesOrId);
+      
+      // If a new issue ID is provided, track it
+      if (fieldsOrNewIssueId && typeof fieldsOrNewIssueId === 'string') {
+        setNewlyCreatedIssueId(fieldsOrNewIssueId);
+      }
+    } else if (typeof updatedIssuesOrId === 'string' || typeof updatedIssuesOrId === 'number') {
+      // Case 3: Updating a specific issue by ID
+      const issueId = updatedIssuesOrId;
+      const fieldsToUpdate = fieldsOrNewIssueId || {};
+      
+      // Create updated issues array with the modified issue
+      const updatedIssues = issues.map(issue => 
+        issue.id === issueId ? { ...issue, ...fieldsToUpdate } : issue
+      );
+      
+      updateLocalProjectIssues(updatedIssues);
+    } else if (updatedIssuesOrId === null) {
+      // Handle case for removing an issue (used during deletion)
+      // This is where our delete functionality will primarily work
+      const issueIdToRemove = fieldsOrNewIssueId;
+      if (issueIdToRemove) {
+        const filteredIssues = issues.filter(issue => issue.id !== issueIdToRemove);
+        updateLocalProjectIssues(filteredIssues);
+      }
+    }
+  }, [issues, updateLocalProjectIssues]);
+  
   // Wrapped fetchIssues to prevent infinite loops with throttling
   const safelyFetchIssues = useCallback(async (force = false) => {
     // Skip if already refreshing
@@ -107,17 +144,6 @@ const ProjectBoard = ({
       }
     }
   }, [fetchIssues, dragInProgress]);
-  
-  // Enhanced update local issues function that also handles new issues
-  const enhancedUpdateLocalProjectIssues = useCallback((updatedIssues, newIssueId = null) => {
-    // Call the original update function
-    updateLocalProjectIssues(updatedIssues);
-    
-    // If a new issue was created, set its ID to track it
-    if (newIssueId) {
-      setNewlyCreatedIssueId(newIssueId);
-    }
-  }, [updateLocalProjectIssues]);
   
   // Handle drag start and end to prevent unnecessary refreshes during dragging
   const handleDragStatusChange = useCallback((isDragging) => {
@@ -175,6 +201,15 @@ const ProjectBoard = ({
   const handleRefreshClick = () => {
     safelyFetchIssues(true);
   };
+  
+  // Handle issue deletion 
+  const handleIssueDeleted = useCallback((deletedIssueId) => {
+    // Remove the issue from the local state
+    enhancedUpdateLocalProjectIssues(null, deletedIssueId);
+    
+    // Refresh from server to ensure consistency
+    safelyFetchIssues(true);
+  }, [enhancedUpdateLocalProjectIssues, safelyFetchIssues]);
   
   // Display error message if applicable
   if (error) {
@@ -262,6 +297,8 @@ const ProjectBoard = ({
                   fetchProject={fetchProject}
                   fetchIssues={safelyFetchIssues}
                   updateLocalProjectIssues={enhancedUpdateLocalProjectIssues}
+                  onIssueDeleted={handleIssueDeleted}
+                  issues={issues}
                   modalClose={modal.close}
                 />
               )}
