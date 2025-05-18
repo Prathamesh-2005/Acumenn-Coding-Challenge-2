@@ -124,11 +124,12 @@ const IssueCreate = ({
           
           // Format the created issue to match the expected shape in the UI
           if (createdIssue) {
+            // Ensure all IDs are strings and all required fields are present
             const formattedIssue = {
               ...createdIssue,
-              id: String(createdIssue.id), // Ensure ID is a string for consistency
-              projectId: String(createdIssue.projectId), // Ensure projectId is a string
-              userIds: values.userIds,
+              id: String(createdIssue.id),
+              projectId: String(createdIssue.projectId),
+              userIds: values.userIds || [],
               users: values.userIds.map(userId => {
                 const user = project.users.find(u => u.id === userId);
                 return user || null;
@@ -137,26 +138,25 @@ const IssueCreate = ({
               assignee: assigneeId ? project.users.find(user => user.id === assigneeId) : null,
             };
             
-            // Update local project issues immediately for real-time feedback
-            updateLocalProjectIssues(currentIssues => {
-              return [formattedIssue, ...currentIssues];
-            });
-            
-            // Trigger the onCreate callback with the formatted issue for immediate use
-            if (onCreate) {
-              onCreate(formattedIssue);
-            }
+            // CRITICAL: First add the issue directly to the issues state for immediate display
+            updateLocalProjectIssues(prev => [formattedIssue, ...prev]);
             
             toast.success('Issue has been successfully created.');
             
-            // Close the modal first for better UX
+            // Close the modal
             modalClose();
             
-            // Then fetch updated project data in the background
-            fetchProject();
+            // Call onCreate to execute any additional callback logic (like navigation)
+            if (onCreate) {
+              // Pass the formatted issue so it can be used immediately
+              onCreate(formattedIssue);
+            }
             
-            // Also refresh issues in the background to sync any backend changes
-            fetchIssues(true);
+            // In the background, update project and issues data to ensure consistency
+            setTimeout(() => {
+              fetchProject().catch(err => console.error('Background project fetch failed:', err));
+              fetchIssues(true).catch(err => console.error('Background issues fetch failed:', err));
+            }, 100);
           }
         } catch (error) {
           console.error('Failed to create issue:', error);
