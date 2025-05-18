@@ -1,10 +1,17 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+
 import supabase from 'config/supaBaseConfig';
 import toast from 'shared/utils/toast';
 import { Button, ConfirmModal } from 'shared/components';
 
-const ProjectBoardIssueDetailsDelete = ({ issueId, fetchProject, fetchIssues, updateLocalProjectIssues, modalClose }) => {
+const ProjectBoardIssueDetailsDelete = ({ 
+  issueId, 
+  fetchProject, 
+  modalClose, 
+  updateLocalProjectIssues, // Add this prop to handle local state updates
+  issues // Add this prop to access current issues 
+}) => {
   const handleIssueDelete = async () => {
     try {
       // Check if supabase is properly initialized
@@ -12,44 +19,25 @@ const ProjectBoardIssueDetailsDelete = ({ issueId, fetchProject, fetchIssues, up
         throw new Error('Supabase client is not properly initialized');
       }
       
-      // Convert issueId to proper format if needed (some databases require specific types)
-      const formattedIssueId = String(issueId);
-      
-      // Delete the issue from the database
       const { error } = await supabase
         .from('issue')
         .delete()
-        .eq('id', formattedIssueId);
-        
+        .eq('id', issueId);
+
       if (error) throw error;
 
-      // First close the modal to prevent UI issues
+      // Update the local state immediately to remove the deleted issue
+      const updatedIssues = issues.filter(issue => issue.id !== issueId);
+      updateLocalProjectIssues(updatedIssues);
+      
+      // Also fetch the project to ensure server-side consistency
+      await fetchProject();
+      
       modalClose();
-      
-      // Then update local state by removing the deleted issue
-      // We're passing a function here, not expecting the result as a callback
-      updateLocalProjectIssues(prevIssues => 
-        prevIssues.filter(issue => String(issue.id) !== formattedIssueId)
-      );
-      
-      // Show success message
       toast.success('Issue successfully deleted');
-      
-      // In the background, refresh the project data
-      // Use setTimeout to ensure this happens after the UI updates
-      setTimeout(() => {
-        if (fetchProject) {
-          fetchProject().catch(err => console.error('Background project fetch failed:', err));
-        }
-        
-        if (fetchIssues) {
-          fetchIssues(true).catch(err => console.error('Background issues fetch failed:', err));
-        }
-      }, 100);
-      
     } catch (err) {
       console.error('Delete issue error:', err);
-      toast.error(`Failed to delete issue: ${err.message || 'Unknown error'}`);
+      toast.error(`Failed to delete issue: ${err.message}`);
     }
   };
 
@@ -73,9 +61,9 @@ ProjectBoardIssueDetailsDelete.propTypes = {
     PropTypes.number
   ]).isRequired,
   fetchProject: PropTypes.func.isRequired,
-  fetchIssues: PropTypes.func, // Optional but recommended for immediate refresh
-  updateLocalProjectIssues: PropTypes.func.isRequired, // Required for real-time UI updates
   modalClose: PropTypes.func.isRequired,
+  updateLocalProjectIssues: PropTypes.func.isRequired, // Required to update local state
+  issues: PropTypes.array.isRequired, // Required to filter current issues
 };
 
 export default ProjectBoardIssueDetailsDelete;
