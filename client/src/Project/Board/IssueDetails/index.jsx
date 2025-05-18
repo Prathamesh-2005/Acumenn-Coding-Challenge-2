@@ -46,13 +46,11 @@ const ProjectBoardIssueDetails = ({
       setIsLoading(true);
       setError(null);
       
-      // Fetch the issue with its related data
+      // Correctly query the issue with its foreign key IDs
       const { data, error: issueError } = await supabase
         .from('issue')
         .select(`
-          *,
-          reporter:reporterId(*),
-          assignee:assigneeId(*)
+          *
         `)
         .eq('id', issueId)
         .single();
@@ -61,6 +59,34 @@ const ProjectBoardIssueDetails = ({
       
       if (!data) {
         throw new Error('Issue not found');
+      }
+      
+      // Separately fetch reporter and assignee data if IDs exist
+      let reporter = null;
+      let assignee = null;
+      
+      if (data.reporterId) {
+        const { data: reporterData, error: reporterError } = await supabase
+          .from('user')
+          .select('*')
+          .eq('id', data.reporterId)
+          .single();
+          
+        if (!reporterError) {
+          reporter = reporterData;
+        }
+      }
+      
+      if (data.assigneeId) {
+        const { data: assigneeData, error: assigneeError } = await supabase
+          .from('user')
+          .select('*')
+          .eq('id', data.assigneeId)
+          .single();
+          
+        if (!assigneeError) {
+          assignee = assigneeData;
+        }
       }
 
       // Fetch user associations
@@ -89,6 +115,8 @@ const ProjectBoardIssueDetails = ({
       // Construct the formatted issue with users and comments
       const formattedIssue = {
         ...data,
+        reporter,
+        assignee,
         userIds, // Store the raw userIds array
         users,   // Store the full user objects
         comments: comments || []
@@ -182,6 +210,8 @@ const ProjectBoardIssueDetails = ({
       delete dbFields.users;
       delete dbFields.userIds;
       delete dbFields.comments;
+      delete dbFields.reporter;
+      delete dbFields.assignee;
       
       // Only update the database if there are actual database fields to update
       // and if they're not being handled by child components directly
