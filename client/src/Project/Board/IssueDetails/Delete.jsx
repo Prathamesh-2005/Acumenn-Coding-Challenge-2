@@ -30,10 +30,8 @@ const ProjectBoardIssueDetailsDelete = ({
       toast.success('Issue successfully deleted');
       
       // Immediately update local state by filtering out the deleted issue
-      // This provides instant UI feedback without waiting for server refresh
       if (typeof updateLocalProjectIssues === 'function') {
-        // Assuming the updateLocalProjectIssues function expects an array of issues
-        // We're telling it to filter out the issue that was just deleted
+        // Filter out the deleted issue from current issues
         updateLocalProjectIssues(currentIssues => 
           currentIssues.filter(issue => issue.id !== issueId)
         );
@@ -42,18 +40,22 @@ const ProjectBoardIssueDetailsDelete = ({
       // Close the modal so user can continue with their workflow
       modalClose();
       
-      // Refresh project data if needed (e.g., for issue counts)
+      // Refresh project data if function is available
       if (typeof fetchProject === 'function') {
-        await fetchProject().catch(err => {
+        try {
+          await fetchProject();
+        } catch (err) {
           console.error('Error refreshing project data:', err);
-        });
+        }
       }
       
-      // Force refresh issues list from server to ensure everything is in sync
+      // Refresh issues list to ensure server-side consistency
       if (typeof fetchIssues === 'function') {
-        await fetchIssues(true).catch(err => {
+        try {
+          await fetchIssues(true); // Force refresh with parameter true
+        } catch (err) {
           console.error('Error refreshing issues:', err);
-        });
+        }
       }
     } catch (err) {
       console.error('Delete issue error:', err);
@@ -81,8 +83,8 @@ ProjectBoardIssueDetailsDelete.propTypes = {
     PropTypes.number
   ]).isRequired,
   fetchProject: PropTypes.func.isRequired,
-  fetchIssues: PropTypes.func.isRequired, 
-  updateLocalProjectIssues: PropTypes.func, // For instant UI updates
+  fetchIssues: PropTypes.func.isRequired,
+  updateLocalProjectIssues: PropTypes.func.isRequired,
   modalClose: PropTypes.func.isRequired,
 };
 
