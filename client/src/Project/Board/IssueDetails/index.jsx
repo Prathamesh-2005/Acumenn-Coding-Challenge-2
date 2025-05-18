@@ -24,7 +24,10 @@ const propTypes = {
   ]).isRequired,
   projectUsers: PropTypes.array.isRequired,
   fetchProject: PropTypes.func.isRequired,
+  fetchIssues: PropTypes.func.isRequired,
   updateLocalProjectIssues: PropTypes.func.isRequired,
+  onIssueDeleted: PropTypes.func.isRequired,
+  issues: PropTypes.array.isRequired,
   modalClose: PropTypes.func.isRequired,
 };
 
@@ -32,7 +35,10 @@ const ProjectBoardIssueDetails = ({
   issueId,
   projectUsers,
   fetchProject,
+  fetchIssues,
   updateLocalProjectIssues,
+  onIssueDeleted,
+  issues,
   modalClose,
 }) => {
   const [issue, setIssue] = useState(null);
@@ -120,8 +126,18 @@ const ProjectBoardIssueDetails = ({
         schema: 'public', 
         table: 'issue',
         filter: `id=eq.${issueId}`
-      }, () => {
-        console.log('Issue change detected, refreshing...');
+      }, (payload) => {
+        console.log('Issue change detected:', payload);
+        
+        // Handle issue deletion event
+        if (payload.eventType === 'DELETE') {
+          console.log('Issue was deleted, handling deletion event');
+          onIssueDeleted(issueId);
+          modalClose();
+          return;
+        }
+        
+        // For other changes, refresh the issue
         fetchIssue();
       })
       .subscribe();
@@ -159,7 +175,7 @@ const ProjectBoardIssueDetails = ({
       supabase.removeChannel(usersSubscription);
       supabase.removeChannel(commentsSubscription);
     };
-  }, [issueId, fetchIssue]);
+  }, [issueId, fetchIssue, onIssueDeleted, modalClose]);
 
   const updateIssue = useCallback(async (updatedFields) => {
     try {
@@ -206,6 +222,39 @@ const ProjectBoardIssueDetails = ({
     }
   }, [issue, updateLocalProjectIssues, fetchIssue]);
 
+  // Handle issue deletion
+  const handleIssueDelete = useCallback(async () => {
+    try {
+      // Check if supabase is properly initialized
+      if (!supabase || typeof supabase.from !== 'function') {
+        throw new Error('Supabase client is not properly initialized');
+      }
+      
+      const { error } = await supabase
+        .from('issue')
+        .delete()
+        .eq('id', issueId);
+
+      if (error) throw error;
+      
+      // Notify ProjectBoard about the deletion
+      onIssueDeleted(issueId);
+      
+      // Close the modal
+      modalClose();
+      
+      // Show success message
+      toast.success('Issue successfully deleted');
+      
+      // Refresh project data
+      await fetchProject();
+      
+    } catch (err) {
+      console.error('Delete issue error:', err);
+      toast.error(`Failed to delete issue: ${err.message}`);
+    }
+  }, [issueId, onIssueDeleted, modalClose, fetchProject]);
+
   if (isLoading) return <Loader />;
   if (error) return <PageError message={error.message || 'Error loading issue'} />;
   if (!issue) return <PageError message="Issue not found" />;
@@ -227,7 +276,8 @@ const ProjectBoardIssueDetails = ({
             issue={issue} 
             issueId={issue.id} 
             fetchProject={fetchProject} 
-            modalClose={modalClose} 
+            modalClose={modalClose}
+            onDelete={handleIssueDelete}
           />
           <Button icon="close" iconSize={24} variant="empty" onClick={modalClose} />
         </TopActionsRight>
