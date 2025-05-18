@@ -1,11 +1,16 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-
 import supabase from 'config/supaBaseConfig';
 import toast from 'shared/utils/toast';
 import { Button, ConfirmModal } from 'shared/components';
 
-const ProjectBoardIssueDetailsDelete = ({ issueId, fetchProject, fetchIssues, modalClose }) => {
+const ProjectBoardIssueDetailsDelete = ({ 
+  issueId, 
+  fetchProject, 
+  fetchIssues, 
+  updateLocalProjectIssues, 
+  modalClose 
+}) => {
   const handleIssueDelete = async () => {
     try {
       // Check if supabase is properly initialized
@@ -18,32 +23,37 @@ const ProjectBoardIssueDetailsDelete = ({ issueId, fetchProject, fetchIssues, mo
         .from('issue')
         .delete()
         .eq('id', issueId);
-
+        
       if (error) throw error;
       
       // Show success message
       toast.success('Issue successfully deleted');
       
+      // Immediately update local state by filtering out the deleted issue
+      // This provides instant UI feedback without waiting for server refresh
+      if (typeof updateLocalProjectIssues === 'function') {
+        // Assuming the updateLocalProjectIssues function expects an array of issues
+        // We're telling it to filter out the issue that was just deleted
+        updateLocalProjectIssues(currentIssues => 
+          currentIssues.filter(issue => issue.id !== issueId)
+        );
+      }
+      
       // Close the modal so user can continue with their workflow
       modalClose();
       
-      // Refresh project data if function is available
+      // Refresh project data if needed (e.g., for issue counts)
       if (typeof fetchProject === 'function') {
-        try {
-          await fetchProject();
-        } catch (err) {
+        await fetchProject().catch(err => {
           console.error('Error refreshing project data:', err);
-        }
+        });
       }
       
-      // Refresh issues list to update the UI
-      // This is the key to fixing the real-time update issue
+      // Force refresh issues list from server to ensure everything is in sync
       if (typeof fetchIssues === 'function') {
-        try {
-          await fetchIssues(true); // Force refresh with parameter true
-        } catch (err) {
+        await fetchIssues(true).catch(err => {
           console.error('Error refreshing issues:', err);
-        }
+        });
       }
     } catch (err) {
       console.error('Delete issue error:', err);
@@ -71,7 +81,8 @@ ProjectBoardIssueDetailsDelete.propTypes = {
     PropTypes.number
   ]).isRequired,
   fetchProject: PropTypes.func.isRequired,
-  fetchIssues: PropTypes.func, // Optional but needed for real-time UI updates
+  fetchIssues: PropTypes.func.isRequired, 
+  updateLocalProjectIssues: PropTypes.func, // For instant UI updates
   modalClose: PropTypes.func.isRequired,
 };
 
