@@ -24,6 +24,7 @@ const propTypes = {
   ]).isRequired,
   projectUsers: PropTypes.array.isRequired,
   fetchProject: PropTypes.func.isRequired,
+  fetchIssues: PropTypes.func.isRequired,
   updateLocalProjectIssues: PropTypes.func.isRequired,
   modalClose: PropTypes.func.isRequired,
 };
@@ -32,6 +33,7 @@ const ProjectBoardIssueDetails = ({
   issueId,
   projectUsers,
   fetchProject,
+  fetchIssues,
   updateLocalProjectIssues,
   modalClose,
 }) => {
@@ -180,7 +182,6 @@ const ProjectBoardIssueDetails = ({
       delete dbFields.users;
       delete dbFields.userIds;
       delete dbFields.comments;
-      delete dbFields.isDeleted; // Don't send the isDeleted flag to the database
       
       // Only update the database if there are actual database fields to update
       // and if they're not being handled by child components directly
@@ -207,13 +208,6 @@ const ProjectBoardIssueDetails = ({
     }
   }, [issue, updateLocalProjectIssues, fetchIssue]);
 
-  // Handle deleted issues
-  useEffect(() => {
-    if (issue?.isDeleted) {
-      modalClose();
-    }
-  }, [issue, modalClose]);
-
   if (isLoading) return <Loader />;
   if (error) return <PageError message={error.message || 'Error loading issue'} />;
   if (!issue) return <PageError message="Issue not found" />;
@@ -234,9 +228,9 @@ const ProjectBoardIssueDetails = ({
           <Delete 
             issue={issue} 
             issueId={issue.id} 
-            fetchProject={fetchProject} 
+            fetchProject={fetchProject}
+            fetchIssues={fetchIssues}
             modalClose={modalClose} 
-            updateLocalProjectIssues={updateLocalProjectIssues}
           />
           <Button icon="close" iconSize={24} variant="empty" onClick={modalClose} />
         </TopActionsRight>
