@@ -48,7 +48,6 @@ const ProjectBoard = ({
   const [error, setError] = useState(null);
   const [localLoading, setLocalLoading] = useState(false);
   const [dragInProgress, setDragInProgress] = useState(false);
-  const [localIssues, setLocalIssues] = useState(issues);
   
   // Track newly created issue IDs to ensure they're displayed immediately
   const [newlyCreatedIssueId, setNewlyCreatedIssueId] = useState(null);
@@ -58,11 +57,6 @@ const ProjectBoard = ({
   const isRefreshingRef = useRef(false);
   const componentMountedRef = useRef(true);
   const lastRefreshTimeRef = useRef(0);
-  
-  // Keep local issues in sync with props
-  useEffect(() => {
-    setLocalIssues(issues);
-  }, [issues]);
   
   // Wrapped fetchIssues to prevent infinite loops with throttling
   const safelyFetchIssues = useCallback(async (force = false) => {
@@ -114,25 +108,16 @@ const ProjectBoard = ({
     }
   }, [fetchIssues, dragInProgress]);
   
-  // Enhanced update local issues function with improved handling
-  const enhancedUpdateLocalProjectIssues = useCallback((updatedIssuesOrFn, newIssueId = null) => {
-    // If updatedIssuesOrFn is a function, apply it to localIssues first
-    if (typeof updatedIssuesOrFn === 'function') {
-      const newIssues = updatedIssuesOrFn(localIssues);
-      // Update both local state and parent
-      setLocalIssues(newIssues);
-      updateLocalProjectIssues(newIssues);
-    } else {
-      // Direct update with array
-      setLocalIssues(updatedIssuesOrFn);
-      updateLocalProjectIssues(updatedIssuesOrFn);
-    }
+  // Enhanced update local issues function that also handles new issues
+  const enhancedUpdateLocalProjectIssues = useCallback((updatedIssues, newIssueId = null) => {
+    // Call the original update function
+    updateLocalProjectIssues(updatedIssues);
     
     // If a new issue was created, set its ID to track it
     if (newIssueId) {
       setNewlyCreatedIssueId(newIssueId);
     }
-  }, [localIssues, updateLocalProjectIssues]);
+  }, [updateLocalProjectIssues]);
   
   // Handle drag start and end to prevent unnecessary refreshes during dragging
   const handleDragStatusChange = useCallback((isDragging) => {
@@ -212,9 +197,6 @@ const ProjectBoard = ({
   const projectName = project?.name || 'Unknown Project';
   const projectUsers = project?.users || [];
   
-  // Use local issues instead of props directly for immediate updates
-  const displayIssues = localIssues;
-  
   return (
     <>
       <Breadcrumbs items={['Projects', projectName, 'Kanban Board']} />
@@ -228,7 +210,7 @@ const ProjectBoard = ({
       
       {isLoading && !dragInProgress ? (
         <PageLoader message="Loading issues..." />
-      ) : displayIssues.length === 0 ? (
+      ) : issues.length === 0 ? (
         <div style={{ padding: '20px', border: '1px solid #dfe1e6', borderRadius: '3px', margin: '10px 0' }}>
           <h3>No Issues Found</h3>
           <p>There are currently no issues for this project.</p>
@@ -251,7 +233,7 @@ const ProjectBoard = ({
       ) : (
         <Lists
           project={project}
-          issues={displayIssues}
+          issues={issues}
           filters={filters}
           updateLocalProjectIssues={enhancedUpdateLocalProjectIssues}
           fetchIssues={safelyFetchIssues}
