@@ -5,7 +5,7 @@ import supabase from 'config/supaBaseConfig';
 import toast from 'shared/utils/toast';
 import { Button, ConfirmModal } from 'shared/components';
 
-const ProjectBoardIssueDetailsDelete = ({ issueId, fetchProject, modalClose }) => {
+const ProjectBoardIssueDetailsDelete = ({ issueId, fetchProject, fetchIssues, modalClose }) => {
   const handleIssueDelete = async () => {
     try {
       // Check if supabase is properly initialized
@@ -13,16 +13,38 @@ const ProjectBoardIssueDetailsDelete = ({ issueId, fetchProject, modalClose }) =
         throw new Error('Supabase client is not properly initialized');
       }
       
+      // Delete the issue from the database
       const { error } = await supabase
         .from('issue')
         .delete()
         .eq('id', issueId);
 
       if (error) throw error;
-
-      await fetchProject();
-      modalClose();
+      
+      // Show success message
       toast.success('Issue successfully deleted');
+      
+      // Close the modal so user can continue with their workflow
+      modalClose();
+      
+      // Refresh project data if function is available
+      if (typeof fetchProject === 'function') {
+        try {
+          await fetchProject();
+        } catch (err) {
+          console.error('Error refreshing project data:', err);
+        }
+      }
+      
+      // Refresh issues list to update the UI
+      // This is the key to fixing the real-time update issue
+      if (typeof fetchIssues === 'function') {
+        try {
+          await fetchIssues(true); // Force refresh with parameter true
+        } catch (err) {
+          console.error('Error refreshing issues:', err);
+        }
+      }
     } catch (err) {
       console.error('Delete issue error:', err);
       toast.error(`Failed to delete issue: ${err.message}`);
@@ -49,6 +71,7 @@ ProjectBoardIssueDetailsDelete.propTypes = {
     PropTypes.number
   ]).isRequired,
   fetchProject: PropTypes.func.isRequired,
+  fetchIssues: PropTypes.func, // Optional but needed for real-time UI updates
   modalClose: PropTypes.func.isRequired,
 };
 
