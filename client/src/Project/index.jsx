@@ -1,4 +1,3 @@
-// Updated Project.jsx - Enhanced for better UI updates after issue deletion
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Route, Redirect, useRouteMatch, useHistory } from 'react-router-dom';
 import { updateArrayItemById } from 'shared/utils/javascript';
@@ -295,20 +294,26 @@ const Project = () => {
   }, [project?.id, fetchIssues]);
 
   // Method to update issues locally (for optimistic updates)
-  const updateLocalProjectIssues = useCallback((issueId, updatedFields) => {
-    // If this is a delete operation (indicated by special flag)
+  const updateLocalProjectIssues = useCallback((updaterOrId, updatedFields) => {
+    // Case 1: First argument is a function (setState updater pattern)
+    if (typeof updaterOrId === 'function') {
+      setIssues(updaterOrId);
+      return;
+    }
+    
+    // Case 2: Delete operation (indicated by special flag)
     if (updatedFields && updatedFields._isDeleted) {
       // Remove the issue from local state immediately
       setIssues(currentIssues => 
-        currentIssues.filter(issue => String(issue.id) !== String(issueId))
+        currentIssues.filter(issue => String(issue.id) !== String(updaterOrId))
       );
       issueDeletedRef.current = true;
       return;
     }
     
-    // Otherwise, update the issue in the local state
+    // Case 3: Traditional update pattern with id and fields
     setIssues(currentIssues => {
-      return updateArrayItemById(currentIssues, issueId, updatedFields);
+      return updateArrayItemById(currentIssues, updaterOrId, updatedFields);
     });
   }, []);
 
@@ -372,8 +377,13 @@ const Project = () => {
             <IssueCreate
               project={project}
               fetchProject={fetchProject}
-              onCreate={() => {
-                fetchIssues(true);
+              fetchIssues={fetchIssues}
+              updateLocalProjectIssues={updateLocalProjectIssues}
+              onCreate={(newIssue) => {
+                // Ensure the new issue is added to the local state
+                if (newIssue && !issues.some(issue => issue.id === newIssue.id)) {
+                  setIssues(currentIssues => [newIssue, ...currentIssues]);
+                }
                 history.push(`${match.url}/board`);
               }}
               modalClose={modal.close}
