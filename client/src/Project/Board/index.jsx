@@ -109,16 +109,22 @@ const ProjectBoard = ({
   }, [fetchIssues, dragInProgress]);
   
   // Enhanced update local issues function that properly handles updates and deletions
-  const enhancedUpdateLocalProjectIssues = useCallback((issueIdOrUpdatedIssues, updatedFields = null) => {
-    // If updatedFields is null, it means we're deleting the issue
+  const enhancedUpdateLocalProjectIssues = useCallback((issueIdOrUpdaterOrNewIssue, updatedFields = null) => {
+    // Case 1: Function updater pattern (for filtering operations)
+    if (typeof issueIdOrUpdaterOrNewIssue === 'function') {
+      updateLocalProjectIssues(issueIdOrUpdaterOrNewIssue);
+      return;
+    }
+    
+    // Case 2: If updatedFields is null, it means we're deleting the issue
     if (updatedFields === null) {
-      const issueId = issueIdOrUpdatedIssues;
+      const issueId = issueIdOrUpdaterOrNewIssue;
       
-      // Call the original update function with a function to filter out the deleted issue
+      // Handle deletion by passing a filter function to the parent
       updateLocalProjectIssues(currentIssues => {
         return Array.isArray(currentIssues) 
           ? currentIssues.filter(issue => issue.id !== issueId)
-          : currentIssues;
+          : [];
       });
       
       // If we're currently viewing the issue being deleted, redirect to the board
@@ -126,45 +132,25 @@ const ProjectBoard = ({
       if (pathname.includes(`/issues/${issueId}`)) {
         history.push(match.url);
       }
+      return;
     } 
-    // New issue case
-    else if (typeof issueIdOrUpdatedIssues === 'object' && issueIdOrUpdatedIssues !== null) {
-      // This is the case for a completely new issue object
-      const newIssue = issueIdOrUpdatedIssues;
+    // Case 3: New issue object
+    else if (typeof issueIdOrUpdaterOrNewIssue === 'object' && issueIdOrUpdaterOrNewIssue !== null) {
+      // This is a completely new issue object
+      const newIssue = issueIdOrUpdaterOrNewIssue;
       
       // Track new issue to ensure it's displayed
       setNewlyCreatedIssueId(newIssue.id);
       
-      // Add the new issue to the list
-      updateLocalProjectIssues(currentIssues => {
-        // If the issue already exists, replace it
-        const issueExists = Array.isArray(currentIssues) && 
-          currentIssues.some(issue => issue.id === newIssue.id);
-        
-        if (issueExists) {
-          return currentIssues.map(issue => 
-            issue.id === newIssue.id ? { ...issue, ...newIssue } : issue
-          );
-        }
-        
-        // Otherwise add it as a new issue
-        return [...(Array.isArray(currentIssues) ? currentIssues : []), newIssue];
-      });
+      // Add the new issue to the list or update existing one
+      updateLocalProjectIssues(newIssue);
+      return;
     }
-    // Update existing issue case
+    // Case 4: Update existing issue with ID and fields
     else {
-      const issueId = issueIdOrUpdatedIssues;
-      
-      // Standard update to existing issue
-      updateLocalProjectIssues(currentIssues => {
-        return Array.isArray(currentIssues)
-          ? currentIssues.map(issue => 
-              issue.id === issueId 
-                ? { ...issue, ...updatedFields } 
-                : issue
-            )
-          : currentIssues;
-      });
+      const issueId = issueIdOrUpdaterOrNewIssue;
+      // Pass update to parent component
+      updateLocalProjectIssues(issueId, updatedFields);
     }
   }, [updateLocalProjectIssues, history, match.url]);
   
