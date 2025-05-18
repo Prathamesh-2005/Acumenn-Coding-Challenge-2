@@ -1,6 +1,5 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-
 import supabase from 'config/supaBaseConfig';
 import toast from 'shared/utils/toast';
 import { Button, ConfirmModal } from 'shared/components';
@@ -13,29 +12,44 @@ const ProjectBoardIssueDetailsDelete = ({ issueId, fetchProject, fetchIssues, up
         throw new Error('Supabase client is not properly initialized');
       }
       
+      // Convert issueId to proper format if needed (some databases require specific types)
+      const formattedIssueId = String(issueId);
+      
+      // Delete the issue from the database
       const { error } = await supabase
         .from('issue')
         .delete()
-        .eq('id', issueId);
-
+        .eq('id', formattedIssueId);
+        
       if (error) throw error;
 
-      // Update local state by removing the deleted issue
-      updateLocalProjectIssues(prevIssues => 
-        prevIssues.filter(issue => issue.id !== issueId)
-      );
-
-      // Fetch the updated project data to keep everything in sync
-      await fetchProject();
-      
-      // Close the modal
+      // First close the modal to prevent UI issues
       modalClose();
+      
+      // Then update local state by removing the deleted issue
+      // We're passing a function here, not expecting the result as a callback
+      updateLocalProjectIssues(prevIssues => 
+        prevIssues.filter(issue => String(issue.id) !== formattedIssueId)
+      );
       
       // Show success message
       toast.success('Issue successfully deleted');
+      
+      // In the background, refresh the project data
+      // Use setTimeout to ensure this happens after the UI updates
+      setTimeout(() => {
+        if (fetchProject) {
+          fetchProject().catch(err => console.error('Background project fetch failed:', err));
+        }
+        
+        if (fetchIssues) {
+          fetchIssues(true).catch(err => console.error('Background issues fetch failed:', err));
+        }
+      }, 100);
+      
     } catch (err) {
       console.error('Delete issue error:', err);
-      toast.error(`Failed to delete issue: ${err.message}`);
+      toast.error(`Failed to delete issue: ${err.message || 'Unknown error'}`);
     }
   };
 
