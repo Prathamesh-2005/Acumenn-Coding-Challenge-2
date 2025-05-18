@@ -75,7 +75,6 @@ const ProjectBoardIssueDetailsAssigneesReporter = ({ issue, updateIssue, project
         users: selectedUsers,
         userIds: selectedUserIds,
         assigneeId: selectedUserIds.length > 0 ? selectedUserIds[0] : null,
-        // assignee: selectedUserIds.length > 0 ? getUserById(selectedUserIds[0]) : null
       });
       
       toast.success('Assignees updated successfully');
@@ -101,10 +100,9 @@ const ProjectBoardIssueDetailsAssigneesReporter = ({ issue, updateIssue, project
       
       if (error) throw error;
       
-      // Update local state with both the ID and the full user object
+      // Update local state with the ID only
       updateIssue({ 
         reporterId: userId,
-        // reporter: getUserById(userId)
       });
       
       toast.success('Reporter updated successfully');
