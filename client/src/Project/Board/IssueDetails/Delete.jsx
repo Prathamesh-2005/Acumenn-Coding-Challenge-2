@@ -1,6 +1,5 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-
 import supabase from 'config/supaBaseConfig';
 import toast from 'shared/utils/toast';
 import { Button, ConfirmModal } from 'shared/components';
@@ -13,23 +12,30 @@ const ProjectBoardIssueDetailsDelete = ({ issueId, fetchProject, modalClose, upd
         throw new Error('Supabase client is not properly initialized');
       }
       
+      // Delete the issue from the database
       const { error } = await supabase
         .from('issue')
         .delete()
         .eq('id', issueId);
-
+        
       if (error) throw error;
-
-      // Immediately update local state to remove the deleted issue
-      updateLocalProjectIssues(issueId, null);
       
-      // Close the modal first before fetching the project to avoid UI flicker
-      modalClose();
-      
-      // Then fetch project to ensure server state is synced
-      await fetchProject();
+      // Update local state to remove the deleted issue
+      // Call updateLocalProjectIssues with a function that filters out the deleted issue
+      updateLocalProjectIssues(currentIssues => 
+        Array.isArray(currentIssues) 
+          ? currentIssues.filter(issue => issue.id !== issueId)
+          : []
+      );
       
       toast.success('Issue successfully deleted');
+      
+      // Close the modal after deletion
+      modalClose();
+      
+      // Fetch project to refresh data
+      await fetchProject();
+      
     } catch (err) {
       console.error('Delete issue error:', err);
       toast.error(`Failed to delete issue: ${err.message}`);
