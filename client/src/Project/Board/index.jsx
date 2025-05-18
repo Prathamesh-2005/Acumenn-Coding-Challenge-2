@@ -110,20 +110,14 @@ const ProjectBoard = ({
   
   // Enhanced update local issues function that also handles new issues
   const enhancedUpdateLocalProjectIssues = useCallback((issueId, updatedFields) => {
-    // If the issue is marked as deleted, close any open issue modal for it
-    if (updatedFields?.isDeleted && match.params?.issueId === issueId.toString()) {
-      // Redirect to board view if currently viewing the deleted issue
-      history.push(match.url);
-    }
-    
     // Call the original update function
     updateLocalProjectIssues(issueId, updatedFields);
     
-    // If a new issue was created, set its ID to track it
-    if (updatedFields?.isNew) {
+    // If this is a new issue ID, track it
+    if (updatedFields && updatedFields._isNew) {
       setNewlyCreatedIssueId(issueId);
     }
-  }, [updateLocalProjectIssues, match, history]);
+  }, [updateLocalProjectIssues]);
   
   // Handle drag start and end to prevent unnecessary refreshes during dragging
   const handleDragStatusChange = useCallback((isDragging) => {
@@ -203,10 +197,6 @@ const ProjectBoard = ({
   const projectName = project?.name || 'Unknown Project';
   const projectUsers = project?.users || [];
   
-  // Filter out any issues that are marked as deleted 
-  // for optimistic UI updates on deletion
-  const filteredIssues = issues.filter(issue => !issue.isDeleted);
-  
   return (
     <>
       <Breadcrumbs items={['Projects', projectName, 'Kanban Board']} />
@@ -220,7 +210,7 @@ const ProjectBoard = ({
       
       {isLoading && !dragInProgress ? (
         <PageLoader message="Loading issues..." />
-      ) : filteredIssues.length === 0 ? (
+      ) : issues.length === 0 ? (
         <div style={{ padding: '20px', border: '1px solid #dfe1e6', borderRadius: '3px', margin: '10px 0' }}>
           <h3>No Issues Found</h3>
           <p>There are currently no issues for this project.</p>
@@ -243,7 +233,7 @@ const ProjectBoard = ({
       ) : (
         <Lists
           project={project}
-          issues={filteredIssues}
+          issues={issues}
           filters={filters}
           updateLocalProjectIssues={enhancedUpdateLocalProjectIssues}
           fetchIssues={safelyFetchIssues}
