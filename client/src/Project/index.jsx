@@ -249,16 +249,15 @@ const Project = () => {
   }, [fetchProject, fetchIssues, currentUserId, project, issues.length]);
 
   // Method to update issues locally (for optimistic updates)
-  const updateLocalProjectIssues = useCallback((updaterFn) => {
-    // If updaterFn is a function, use it to update state
-    if (typeof updaterFn === 'function') {
-      setIssues(updaterFn);
+  const updateLocalProjectIssues = useCallback((updaterOrId, updatedFields) => {
+    // Case 1: First argument is a function (setState updater pattern)
+    if (typeof updaterOrId === 'function') {
+      setIssues(updaterOrId);
     } 
-    // Otherwise treat it as the traditional issueId + updatedFields pattern
+    // Case 2: Traditional pattern with id and fields
     else {
-      const [issueId, updatedFields] = updaterFn;
       setIssues(currentIssues => {
-        return updateArrayItemById(currentIssues, issueId, updatedFields);
+        return updateArrayItemById(currentIssues, updaterOrId, updatedFields);
       });
     }
   }, []);
@@ -310,7 +309,11 @@ const Project = () => {
               fetchProject={fetchProject}
               fetchIssues={fetchIssues}
               updateLocalProjectIssues={updateLocalProjectIssues}
-              onCreate={() => {
+              onCreate={(newIssue) => {
+                // Ensure the new issue is added to the local state
+                if (newIssue && !issues.some(issue => issue.id === newIssue.id)) {
+                  setIssues(currentIssues => [newIssue, ...currentIssues]);
+                }
                 history.push(`${match.url}/board`);
               }}
               modalClose={modal.close}
