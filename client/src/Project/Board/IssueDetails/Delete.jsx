@@ -26,21 +26,22 @@ const ProjectBoardIssueDetailsDelete = ({
         
       if (error) throw error;
       
+      // First, close the modal immediately
+      modalClose();
+      
       // Show success message
       toast.success('Issue successfully deleted');
       
-      // Immediately update local state by filtering out the deleted issue
+      // IMPORTANT: This is the key part for real-time updates 
+      // Get current issues and filter out the deleted one
       if (typeof updateLocalProjectIssues === 'function') {
-        // Filter out the deleted issue from current issues
-        updateLocalProjectIssues(currentIssues => 
-          currentIssues.filter(issue => issue.id !== issueId)
-        );
+        // Filter out the deleted issue directly
+        updateLocalProjectIssues(prevIssues => {
+          return prevIssues.filter(issue => issue.id !== issueId);
+        });
       }
       
-      // Close the modal so user can continue with their workflow
-      modalClose();
-      
-      // Refresh project data if function is available
+      // Refresh project data
       if (typeof fetchProject === 'function') {
         try {
           await fetchProject();
@@ -49,10 +50,10 @@ const ProjectBoardIssueDetailsDelete = ({
         }
       }
       
-      // Refresh issues list to ensure server-side consistency
+      // Force refresh issues from server to sync with database
       if (typeof fetchIssues === 'function') {
         try {
-          await fetchIssues(true); // Force refresh with parameter true
+          await fetchIssues(true);
         } catch (err) {
           console.error('Error refreshing issues:', err);
         }
@@ -77,7 +78,6 @@ const ProjectBoardIssueDetailsDelete = ({
 };
 
 ProjectBoardIssueDetailsDelete.propTypes = {
-  // Accept both string and number types for issueId
   issueId: PropTypes.oneOfType([
     PropTypes.string,
     PropTypes.number
