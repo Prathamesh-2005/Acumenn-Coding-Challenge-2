@@ -108,51 +108,22 @@ const ProjectBoard = ({
     }
   }, [fetchIssues, dragInProgress]);
   
-  // Enhanced update local issues function that properly handles updates and deletions
-  const enhancedUpdateLocalProjectIssues = useCallback((issueIdOrUpdaterOrNewIssue, updatedFields = null) => {
-    // Case 1: Function updater pattern (for filtering operations)
-    if (typeof issueIdOrUpdaterOrNewIssue === 'function') {
-      updateLocalProjectIssues(issueIdOrUpdaterOrNewIssue);
-      return;
+  // Enhanced update local issues function that also handles new issues
+  const enhancedUpdateLocalProjectIssues = useCallback((issueId, updatedFields) => {
+    // If the issue is marked as deleted, close any open issue modal for it
+    if (updatedFields?.isDeleted && match.params?.issueId === issueId.toString()) {
+      // Redirect to board view if currently viewing the deleted issue
+      history.push(match.url);
     }
     
-    // Case 2: If updatedFields is null, it means we're deleting the issue
-    if (updatedFields === null) {
-      const issueId = issueIdOrUpdaterOrNewIssue;
-      
-      // Handle deletion by passing a filter function to the parent
-      updateLocalProjectIssues(currentIssues => {
-        return Array.isArray(currentIssues) 
-          ? currentIssues.filter(issue => issue.id !== issueId)
-          : [];
-      });
-      
-      // If we're currently viewing the issue being deleted, redirect to the board
-      const pathname = window.location.pathname;
-      if (pathname.includes(`/issues/${issueId}`)) {
-        history.push(match.url);
-      }
-      return;
-    } 
-    // Case 3: New issue object
-    else if (typeof issueIdOrUpdaterOrNewIssue === 'object' && issueIdOrUpdaterOrNewIssue !== null) {
-      // This is a completely new issue object
-      const newIssue = issueIdOrUpdaterOrNewIssue;
-      
-      // Track new issue to ensure it's displayed
-      setNewlyCreatedIssueId(newIssue.id);
-      
-      // Add the new issue to the list or update existing one
-      updateLocalProjectIssues(newIssue);
-      return;
+    // Call the original update function
+    updateLocalProjectIssues(issueId, updatedFields);
+    
+    // If a new issue was created, set its ID to track it
+    if (updatedFields?.isNew) {
+      setNewlyCreatedIssueId(issueId);
     }
-    // Case 4: Update existing issue with ID and fields
-    else {
-      const issueId = issueIdOrUpdaterOrNewIssue;
-      // Pass update to parent component
-      updateLocalProjectIssues(issueId, updatedFields);
-    }
-  }, [updateLocalProjectIssues, history, match.url]);
+  }, [updateLocalProjectIssues, match, history]);
   
   // Handle drag start and end to prevent unnecessary refreshes during dragging
   const handleDragStatusChange = useCallback((isDragging) => {
@@ -232,6 +203,10 @@ const ProjectBoard = ({
   const projectName = project?.name || 'Unknown Project';
   const projectUsers = project?.users || [];
   
+  // Filter out any issues that are marked as deleted 
+  // for optimistic UI updates on deletion
+  const filteredIssues = issues.filter(issue => !issue.isDeleted);
+  
   return (
     <>
       <Breadcrumbs items={['Projects', projectName, 'Kanban Board']} />
@@ -245,7 +220,7 @@ const ProjectBoard = ({
       
       {isLoading && !dragInProgress ? (
         <PageLoader message="Loading issues..." />
-      ) : issues.length === 0 ? (
+      ) : filteredIssues.length === 0 ? (
         <div style={{ padding: '20px', border: '1px solid #dfe1e6', borderRadius: '3px', margin: '10px 0' }}>
           <h3>No Issues Found</h3>
           <p>There are currently no issues for this project.</p>
@@ -268,7 +243,7 @@ const ProjectBoard = ({
       ) : (
         <Lists
           project={project}
-          issues={issues}
+          issues={filteredIssues}
           filters={filters}
           updateLocalProjectIssues={enhancedUpdateLocalProjectIssues}
           fetchIssues={safelyFetchIssues}
