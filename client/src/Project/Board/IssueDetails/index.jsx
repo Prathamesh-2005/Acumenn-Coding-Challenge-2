@@ -180,6 +180,7 @@ const ProjectBoardIssueDetails = ({
       delete dbFields.users;
       delete dbFields.userIds;
       delete dbFields.comments;
+      delete dbFields.isDeleted; // Don't send the isDeleted flag to the database
       
       // Only update the database if there are actual database fields to update
       // and if they're not being handled by child components directly
@@ -206,6 +207,13 @@ const ProjectBoardIssueDetails = ({
     }
   }, [issue, updateLocalProjectIssues, fetchIssue]);
 
+  // Handle deleted issues
+  useEffect(() => {
+    if (issue?.isDeleted) {
+      modalClose();
+    }
+  }, [issue, modalClose]);
+
   if (isLoading) return <Loader />;
   if (error) return <PageError message={error.message || 'Error loading issue'} />;
   if (!issue) return <PageError message="Issue not found" />;
@@ -227,7 +235,7 @@ const ProjectBoardIssueDetails = ({
             issue={issue} 
             issueId={issue.id} 
             fetchProject={fetchProject} 
-            modalClose={modalClose}
+            modalClose={modalClose} 
             updateLocalProjectIssues={updateLocalProjectIssues}
           />
           <Button icon="close" iconSize={24} variant="empty" onClick={modalClose} />
