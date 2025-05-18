@@ -207,15 +207,6 @@ const IssueCreate = ({
           renderValue={renderUser(project)}
         />
         <Form.Field.Select
-          isMulti
-          name="userIds"
-          label="Additional Users"
-          tip="People who are involved with this issue."
-          options={userOptions(project)}
-          renderOption={renderUser(project)}
-          renderValue={renderUser(project)}
-        />
-        <Form.Field.Select
           name="priority"
           label="Priority"
           tip="Priority in relation to other issues."
