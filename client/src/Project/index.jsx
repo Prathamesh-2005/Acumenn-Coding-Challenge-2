@@ -1,5 +1,7 @@
+// Updated Project.jsx - Enhanced for better UI updates after issue deletion
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Route, Redirect, useRouteMatch, useHistory } from 'react-router-dom';
+import { updateArrayItemById } from 'shared/utils/javascript';
 import { createQueryParamModalHelpers } from 'shared/utils/queryParamModal';
 import { PageLoader, PageError, Modal } from 'shared/components';
 import NavbarLeft from './NavbarLeft';
@@ -33,6 +35,7 @@ const Project = () => {
   const lastProjectFetchTimeRef = useRef(0);
   const lastIssuesFetchTimeRef = useRef(0);
   const componentMountedRef = useRef(true);
+  const issueDeletedRef = useRef(false);
 
   // Fetch project data with throttling
   const fetchProject = useCallback(async (forceFetch = false) => {
@@ -137,6 +140,12 @@ const Project = () => {
 
   // Fetch issues for current project with throttling
   const fetchIssues = useCallback(async (forceFetch = false) => {
+    // Always fetch if we've just deleted an issue
+    if (issueDeletedRef.current) {
+      forceFetch = true;
+      issueDeletedRef.current = false;
+    }
+    
     // Skip if already fetching or component unmounted
     if ((fetchingIssuesRef.current && !forceFetch) || !componentMountedRef.current) {
       console.log('Skipping issues fetch: already fetching or component unmounted');
@@ -247,68 +256,76 @@ const Project = () => {
     };
   }, [fetchProject, fetchIssues, currentUserId, project, issues.length]);
 
-  // Enhanced update local issues function that properly handles updates and deletions
-  const updateLocalProjectIssues = useCallback((issueIdOrUpdaterOrNewIssue, updatedFields = null) => {
-    // Case 1: Function updater pattern (for filtering, etc)
-    if (typeof issueIdOrUpdaterOrNewIssue === 'function') {
-      setIssues(issueIdOrUpdaterOrNewIssue);
+  // Set up realtime subscription for the issue table
+  useEffect(() => {
+    if (!project?.id) return;
+    
+    // Issue table subscription
+    const issueSubscription = supabase
+      .channel('project-issues-changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'issue',
+        filter: `projectId=eq.${project.id}`
+      }, (payload) => {
+        console.log('Issue change detected:', payload);
+        
+        // Handle deletions specifically
+        if (payload.eventType === 'DELETE') {
+          issueDeletedRef.current = true;
+          
+          // Optimistically update the issues list immediately
+          setIssues(currentIssues => 
+            currentIssues.filter(issue => String(issue.id) !== String(payload.old.id))
+          );
+          
+          // Then fetch to ensure everything is in sync
+          fetchIssues(true);
+        } else {
+          // For other changes, just refresh issues
+          fetchIssues(true);
+        }
+      })
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(issueSubscription);
+    };
+  }, [project?.id, fetchIssues]);
+
+  // Method to update issues locally (for optimistic updates)
+  const updateLocalProjectIssues = useCallback((issueId, updatedFields) => {
+    // If this is a delete operation (indicated by special flag)
+    if (updatedFields && updatedFields._isDeleted) {
+      // Remove the issue from local state immediately
+      setIssues(currentIssues => 
+        currentIssues.filter(issue => String(issue.id) !== String(issueId))
+      );
+      issueDeletedRef.current = true;
       return;
     }
     
-    // Case 2: If updatedFields is null, it means we're deleting the issue
-    if (updatedFields === null) {
-      const issueId = issueIdOrUpdaterOrNewIssue;
-      
-      // Remove the issue from the local state
-      setIssues(currentIssues => 
-        Array.isArray(currentIssues) 
-          ? currentIssues.filter(issue => issue.id !== issueId)
-          : []
-      );
-      
-      // If we're currently viewing the issue being deleted, redirect to the board
-      const pathname = window.location.pathname;
-      if (pathname.includes(`/issues/${issueId}`)) {
-        history.push(match.url);
-      }
-    } 
-    // Case 3: New issue object
-    else if (typeof issueIdOrUpdaterOrNewIssue === 'object' && issueIdOrUpdaterOrNewIssue !== null) {
-      // This is the case for a completely new issue object
-      const newIssue = issueIdOrUpdaterOrNewIssue;
-      
-      // Add the new issue to the list or update existing one
-      setIssues(currentIssues => {
-        // If the issue already exists, replace it
-        const issueExists = Array.isArray(currentIssues) && 
-          currentIssues.some(issue => issue.id === newIssue.id);
-        
-        if (issueExists) {
-          return currentIssues.map(issue => 
-            issue.id === newIssue.id ? { ...issue, ...newIssue } : issue
-          );
-        }
-        
-        // Otherwise add it as a new issue
-        return [...(Array.isArray(currentIssues) ? currentIssues : []), newIssue];
-      });
+    // Otherwise, update the issue in the local state
+    setIssues(currentIssues => {
+      return updateArrayItemById(currentIssues, issueId, updatedFields);
+    });
+  }, []);
+
+  // Method to handle issue deletion specifically
+  const handleIssueDelete = useCallback((issueId) => {
+    // Mark issue as deleted in local state
+    updateLocalProjectIssues(issueId, { _isDeleted: true });
+    
+    // Set flag to ensure issues refresh on next fetch
+    issueDeletedRef.current = true;
+    
+    // Redirect to board if we're on the deleted issue's detail page
+    const currentPath = history.location.pathname;
+    if (currentPath.includes(`/issues/${issueId}`)) {
+      history.push(`${match.url}/board`);
     }
-    // Case 4: Update existing issue with ID and fields
-    else {
-      const issueId = issueIdOrUpdaterOrNewIssue;
-      
-      // Standard update to existing issue
-      setIssues(currentIssues => {
-        return Array.isArray(currentIssues)
-          ? currentIssues.map(issue => 
-              issue.id === issueId 
-                ? { ...issue, ...updatedFields } 
-                : issue
-            )
-          : currentIssues;
-      });
-    }
-  }, [history, match.url]);
+  }, [history, match.url, updateLocalProjectIssues]);
 
   // Display loading state
   if (loading && !project) {
@@ -355,13 +372,8 @@ const Project = () => {
             <IssueCreate
               project={project}
               fetchProject={fetchProject}
-              fetchIssues={fetchIssues}
-              updateLocalProjectIssues={updateLocalProjectIssues}
-              onCreate={(newIssue) => {
-                // Ensure the new issue is added to the local state
-                if (newIssue && !issues.some(issue => issue.id === newIssue.id)) {
-                  setIssues(currentIssues => [newIssue, ...currentIssues]);
-                }
+              onCreate={() => {
+                fetchIssues(true);
                 history.push(`${match.url}/board`);
               }}
               modalClose={modal.close}
@@ -380,6 +392,7 @@ const Project = () => {
             issues={issues}
             isIssuesLoading={isIssuesLoading}
             updateLocalProjectIssues={updateLocalProjectIssues}
+            onIssueDelete={handleIssueDelete}
           />
         )}
       />
