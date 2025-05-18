@@ -20,7 +20,7 @@ This project is a **Jira Clone** application re-architected into a **modern serv
 
 ---
 ## Deployed LINK of project= 
-https://acumenn-coding-challenge-2-omih-yqzy83sx2.vercel.app/
+https://acumenn-coding-challenge-2-1wd8.vercel.app/
 
 ## 🧱 Database Schema (PostgreSQL)
 
