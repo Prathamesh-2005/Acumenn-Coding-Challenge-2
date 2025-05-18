@@ -108,10 +108,17 @@ const ProjectBoard = ({
     }
   }, [fetchIssues, dragInProgress]);
   
-  // Enhanced update local issues function that also handles new issues
-  const enhancedUpdateLocalProjectIssues = useCallback((updatedIssues, newIssueId = null) => {
-    // Call the original update function
-    updateLocalProjectIssues(updatedIssues);
+  // Enhanced update local issues function that also handles new issues and deletions
+  const enhancedUpdateLocalProjectIssues = useCallback((updatedIssuesOrFn, newIssueId = null) => {
+    // Handle function or direct array update
+    if (typeof updatedIssuesOrFn === 'function') {
+      // If a function is passed, call updateLocalProjectIssues with that function
+      // This allows for filtered deletions: issues => issues.filter(...)
+      updateLocalProjectIssues(updatedIssuesOrFn);
+    } else {
+      // Original behavior for direct array updates
+      updateLocalProjectIssues(updatedIssuesOrFn);
+    }
     
     // If a new issue was created, set its ID to track it
     if (newIssueId) {
